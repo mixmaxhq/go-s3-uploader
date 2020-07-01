@@ -8,7 +8,7 @@ import (
 )
 
 var (
-	alphabet       = "abcdefghijklmnopqrstuvwxyz"
+	alphabet = "abcdefghijklmnopqrstuvwxyz"
 )
 
 func strOfLen(l int) string {
