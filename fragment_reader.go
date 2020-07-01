@@ -13,7 +13,7 @@ type fragmentReader struct {
 	pending   []byte
 }
 
-// NewFragmentReader constructs a fragment reader from the given fragments and
+// newFragmentReader constructs a fragment reader from the given fragments and
 // a delimiter.
 // precondition: fragments is not empty
 func newFragmentReader(fragments [][]byte, delimiter []byte) io.Reader {
