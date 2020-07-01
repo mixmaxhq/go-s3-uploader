@@ -19,6 +19,10 @@ func strOfLen(l int) string {
 	return v[:l]
 }
 
+func readFragments(blobs [][]byte, delim []byte) ([]byte, error) {
+	return ioutil.ReadAll(newFragmentReader(blobs, delim))
+}
+
 func TestReader(t *testing.T) {
 	blobs := [][]byte{
 		[]byte("hello"),
@@ -37,7 +41,7 @@ func TestReaderDelimiter(t *testing.T) {
 		[]byte("hflkjlksjdf"),
 	}
 
-	blob, err := ioutil.ReadAll(newFragmentReader(blobs, []byte("\n")))
+	blob, err := readFragments(blobs, []byte("\n"))
 	if td.CmpNoError(t, err) {
 		td.Cmp(t, blob, []byte("{}\nhflkjlksjdf\n"))
 	}
@@ -53,7 +57,7 @@ func TestDefaultBoundary(t *testing.T) {
 		}
 		td.Cmp(t, len(s), l)
 
-		blob, err := ioutil.ReadAll(newFragmentReader(blobs, []byte("\n")))
+		blob, err := readFragments(blobs, []byte("\n"))
 		if td.CmpNoError(t, err) {
 			td.Cmp(t, blob, []byte(s+"\nasdf\n"))
 		}
@@ -61,10 +65,6 @@ func TestDefaultBoundary(t *testing.T) {
 }
 
 func TestEmptyFragments(t *testing.T) {
-	td.CmpPanic(t,
-		func() { newFragmentReader([][]byte{}, []byte("\n")) },
-		td.Contains("fragments"))
-
 	blobs := [][]byte{
 		[]byte{},
 		[]byte{},
@@ -72,21 +72,47 @@ func TestEmptyFragments(t *testing.T) {
 		[]byte{},
 	}
 
-	blob, err := ioutil.ReadAll(newFragmentReader(blobs, []byte(".")))
+	blob, err := readFragments(blobs, []byte("."))
 	if td.CmpNoError(t, err) {
 		td.Cmp(t, blob, []byte("..a.."))
 	}
 }
 
-func TestNilDelimiter(t *testing.T) {
-	blobs := [][]byte{
+func TestNilCases(t *testing.T) {
+	blob, err := readFragments(nil, nil)
+	if td.CmpNoError(t, err) {
+		td.Cmp(t, blob, []byte{})
+	}
+
+	blobs := [][]byte{}
+
+	blob, err = readFragments(blobs, nil)
+	if td.CmpNoError(t, err) {
+		td.Cmp(t, blob, []byte{})
+	}
+
+	blobs = [][]byte{
+		[]byte{},
+	}
+
+	blob, err = readFragments(blobs, nil)
+	if td.CmpNoError(t, err) {
+		td.Cmp(t, blob, []byte{})
+	}
+
+	blob, err = readFragments(blobs, []byte("."))
+	if td.CmpNoError(t, err) {
+		td.Cmp(t, blob, []byte("."))
+	}
+
+	blobs = [][]byte{
 		[]byte{},
 		[]byte{},
 		[]byte("a"),
 		[]byte{},
 	}
 
-	blob, err := ioutil.ReadAll(newFragmentReader(blobs, nil))
+	blob, err = readFragments(blobs, nil)
 	if td.CmpNoError(t, err) {
 		td.Cmp(t, blob, []byte("a"))
 	}

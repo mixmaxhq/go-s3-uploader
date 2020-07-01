@@ -1,7 +1,6 @@
 package uploader
 
 import (
-	"errors"
 	"io"
 )
 
@@ -18,9 +17,6 @@ type fragmentReader struct {
 // a delimiter.
 // precondition: fragments is not empty
 func newFragmentReader(fragments [][]byte, delimiter []byte) io.Reader {
-	if len(fragments) == 0 {
-		panic(errors.New("fragments is empty"))
-	}
 	return &fragmentReader{
 		fragments: fragments,
 		fragment:  0,
@@ -69,7 +65,8 @@ func (r *fragmentReader) writePending(p []byte) ([]byte, int) {
 // simplicity, it only writes at most one fragment's worth of data per Read
 // call (plus up to two delimiters).
 func (r *fragmentReader) Read(p []byte) (int, error) {
-	// Safety belts - this doesn't seem to be necessary.
+	// This handles the case that we received zero data, and serves as additional
+	// safety belts if Read were to get called after EOF.
 	if r.drained() {
 		return 0, io.EOF
 	}
