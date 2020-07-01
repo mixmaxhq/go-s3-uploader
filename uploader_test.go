@@ -12,6 +12,13 @@ import (
 	td "github.com/maxatome/go-testdeep/td"
 )
 
+var (
+	fixtures = [][]byte{
+		[]byte(`{"operation":"decrypt","userId":"5bbb95cbd74eb1172d30c0bd","envelopeId":"eb321c8fa1d569ccd00a70dfcd7fbaed99662caa8ed5fe288d6cb85a04ce15b8","tokenType":"access","service":null,"timestamp":"2020-06-29T22:28:01.730Z","taskRelativeTimestamp":18898.848115,"taskId":"local","eventId":"df03369b-0efb-438c-8646-66ad6ce1e0c4"}`),
+		[]byte(`{"operation":"decrypt","userId":"5bbb95cbd74eb1172d30c0bd","envelopeId":"4f6d1e1dc20a4f49d574bb327718f9902fbebceb08325ae52b91ede86645258c","tokenType":"refresh","service":null,"timestamp":"2020-06-29T22:28:01.733Z","taskRelativeTimestamp":18901.033183,"taskId":"local","eventId":"9940f578-1e05-49a0-9753-20117a676f8d"}`),
+	}
+)
+
 type clientMock struct {
 	c           chan int
 	objectCount uint64
@@ -77,8 +84,8 @@ func TestUploader(tt *testing.T) {
 
 	mock, input, errs := config(1024, time.Second*1)
 
-	input <- []byte(`{"operation":"decrypt","userId":"5bbb95cbd74eb1172d30c0bd","envelopeId":"eb321c8fa1d569ccd00a70dfcd7fbaed99662caa8ed5fe288d6cb85a04ce15b8","tokenType":"access","service":null,"timestamp":"2020-06-29T22:28:01.730Z","taskRelativeTimestamp":18898.848115,"taskId":"local","eventId":"df03369b-0efb-438c-8646-66ad6ce1e0c4"}`)
-	input <- []byte(`{"operation":"decrypt","userId":"5bbb95cbd74eb1172d30c0bd","envelopeId":"4f6d1e1dc20a4f49d574bb327718f9902fbebceb08325ae52b91ede86645258c","tokenType":"refresh","service":null,"timestamp":"2020-06-29T22:28:01.733Z","taskRelativeTimestamp":18901.033183,"taskId":"local","eventId":"9940f578-1e05-49a0-9753-20117a676f8d"}`)
+	input <- fixtures[0]
+	input <- fixtures[1]
 	close(input)
 
 	// Drain.
@@ -124,8 +131,8 @@ func TestUploaderConcurrent(tt *testing.T) {
 	// The size parameter will force the data into two separate requests.
 	mock, input, errs := config(300, time.Second*1)
 
-	input <- []byte(`{"operation":"decrypt","userId":"5bbb95cbd74eb1172d30c0bd","envelopeId":"eb321c8fa1d569ccd00a70dfcd7fbaed99662caa8ed5fe288d6cb85a04ce15b8","tokenType":"access","service":null,"timestamp":"2020-06-29T22:28:01.730Z","taskRelativeTimestamp":18898.848115,"taskId":"local","eventId":"df03369b-0efb-438c-8646-66ad6ce1e0c4"}`)
-	input <- []byte(`{"operation":"decrypt","userId":"5bbb95cbd74eb1172d30c0bd","envelopeId":"4f6d1e1dc20a4f49d574bb327718f9902fbebceb08325ae52b91ede86645258c","tokenType":"refresh","service":null,"timestamp":"2020-06-29T22:28:01.733Z","taskRelativeTimestamp":18901.033183,"taskId":"local","eventId":"9940f578-1e05-49a0-9753-20117a676f8d"}`)
+	input <- fixtures[0]
+	input <- fixtures[1]
 	close(input)
 
 	// Drain.
@@ -148,14 +155,14 @@ func TestUploaderWindow(tt *testing.T) {
 	// The window parameter will force the data into two separate requests.
 	mock, input, errs := config(1024, time.Millisecond*100)
 
-	input <- []byte(`{"operation":"decrypt","userId":"5bbb95cbd74eb1172d30c0bd","envelopeId":"eb321c8fa1d569ccd00a70dfcd7fbaed99662caa8ed5fe288d6cb85a04ce15b8","tokenType":"access","service":null,"timestamp":"2020-06-29T22:28:01.730Z","taskRelativeTimestamp":18898.848115,"taskId":"local","eventId":"df03369b-0efb-438c-8646-66ad6ce1e0c4"}`)
+	input <- fixtures[0]
 
 	time.Sleep(100)
 	for atomic.LoadUint64(&mock.objectCount) < 1 {
 		time.Sleep(10)
 	}
 
-	input <- []byte(`{"operation":"decrypt","userId":"5bbb95cbd74eb1172d30c0bd","envelopeId":"4f6d1e1dc20a4f49d574bb327718f9902fbebceb08325ae52b91ede86645258c","tokenType":"refresh","service":null,"timestamp":"2020-06-29T22:28:01.733Z","taskRelativeTimestamp":18901.033183,"taskId":"local","eventId":"9940f578-1e05-49a0-9753-20117a676f8d"}`)
+	input <- fixtures[1]
 	close(input)
 
 	// Drain.
