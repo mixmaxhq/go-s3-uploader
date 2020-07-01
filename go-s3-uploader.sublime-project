@@ -1,0 +1,20 @@
+{
+  "folders": [{
+    "path": ".",
+    "folder_exclude_patterns": [
+      "vendor"
+    ],
+    "file_exclude_patterns": [
+      // Lock file.
+      "go.sum"
+    ]
+  }],
+  "settings": {
+    "tab_size": 2,
+    "ensure_newline_at_eof_on_save": true,
+    "translate_tabs_to_spaces": true,
+    "trim_trailing_white_space_on_save": true,
+    "detect_indentation": false,
+    "rulers": [80]
+  }
+}
