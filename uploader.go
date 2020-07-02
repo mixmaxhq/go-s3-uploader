@@ -95,8 +95,7 @@ type Batch struct {
 }
 
 func (u UploadOptions) isBatchFull(b Batch) bool {
-	return (u.BatchSizeBytes > 0 && b.size >= u.BatchSizeBytes) ||
-		len(b.buffer) == cap(b.buffer)
+	return (u.BatchSizeBytes > 0 && b.size >= u.BatchSizeBytes) || len(b.buffer) == cap(b.buffer)
 }
 
 // emitError emits an error in the errors channel.
