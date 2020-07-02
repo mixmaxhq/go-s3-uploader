@@ -4,7 +4,7 @@ import (
 	"io"
 )
 
-// fragmentReader implements both Reader and ByteReader
+// fragmentReader implements both Reader
 type fragmentReader struct {
 	fragments [][]byte
 	fragment  uint64
