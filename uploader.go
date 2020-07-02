@@ -241,21 +241,22 @@ func fatal(e chan error, err error) chan error {
 }
 
 // Upload consumes a channel containing byte arrays (blobs), joins them with a delimiter in batches,
-// and uploads the batches to S3.
-func Upload(options UploadOptions) <-chan error {
+// and uploads the batches to S3. The error channel outputs runtime errors, while the error return
+// value outputs initialization errors.
+func Upload(options UploadOptions) (<-chan error, error) {
 	e := make(chan error, 1)
 	options.errors = e
 
 	if options.Client == nil {
-		return fatal(e, errors.New("no client provided"))
+		return nil, errors.New("no client provided")
 	}
 
 	if options.GetKey == nil {
-		return fatal(e, errors.New("no key getter provided"))
+		return nil, errors.New("no key getter provided")
 	}
 
 	if options.Input == nil {
-		return fatal(e, errors.New("nil input"))
+		return nil, errors.New("nil input")
 	}
 
 	if options.Delimiter == nil {
@@ -277,5 +278,5 @@ func Upload(options UploadOptions) <-chan error {
 
 	go options.run()
 
-	return e
+	return e, nil
 }

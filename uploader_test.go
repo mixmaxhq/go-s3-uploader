@@ -39,7 +39,7 @@ func config(size uint64, window time.Duration) (*clientMock, chan<- []byte, <-ch
 
 	num := uint64(0xffffffffffffffff)
 
-	errs := Upload(UploadOptions{
+	errs, initErr := Upload(UploadOptions{
 		Client: &mock,
 		Bucket: "test-bucket",
 
@@ -52,6 +52,9 @@ func config(size uint64, window time.Duration) (*clientMock, chan<- []byte, <-ch
 		},
 		Input: input,
 	})
+	if initErr != nil {
+		panic(initErr)
+	}
 
 	return &mock, input, errs
 }
@@ -61,7 +64,7 @@ func TestMisconfigured(tt *testing.T) {
 
 	input := make(chan []byte)
 
-	errs := Upload(UploadOptions{
+	errs, err := Upload(UploadOptions{
 		Client: nil,
 		Bucket: "test-bucket",
 
@@ -71,12 +74,10 @@ func TestMisconfigured(tt *testing.T) {
 		Input: input,
 	})
 
-	err := <-errs
 	assert.Cmp(err, errors.New("no client provided"))
 
-	for err := range errs {
-		assert.Error(err)
-	}
+	var c <-chan error = nil
+	assert.Cmp(errs, c)
 }
 
 func TestUploader(tt *testing.T) {
