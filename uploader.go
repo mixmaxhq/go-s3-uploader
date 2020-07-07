@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/awserr"
+	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/service/s3"
 )
 
@@ -24,6 +26,7 @@ var (
 // test mocks.
 type PutClient interface {
 	PutObject(*s3.PutObjectInput) (*s3.PutObjectOutput, error)
+	PutObjectWithContext(context.Context, *s3.PutObjectInput) (*s3.PutObjectOutput, error)
 }
 
 // UploadOptions contains the configuration information for the Upload process, and exposes no
@@ -53,6 +56,8 @@ type UploadOptions struct {
 	// long, it'll be considered complete and uploaded. This should be defined by the amount of data
 	// you're willing to lose.
 	BatchWindow time.Duration
+	// UploadTimeout is the length of time a single upload may take before it gets canceled.
+	UploadTimeout time.Duration
 
 	// GetKey generates the key string given the time at which the first blob arrived. It is invoked
 	// immediately when a buffer is closed, and used to name/locate the object as it gets uploaded.
@@ -135,15 +140,26 @@ func (u UploadOptions) uploadObject(batch *Batch) {
 		return
 	}
 
-	// TODO: timeout?
-	_, err = u.Client.PutObject(&s3.PutObjectInput{
+	ctx := context.Background()
+	if u.UploadTimeout > time.Second * 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(context.Background(), u.UploadTimeout)
+		defer cancel()
+	}
+
+	_, err = u.Client.PutObjectWithContext(ctx, &s3.PutObjectInput{
 		Body:   compressed,
 		Bucket: aws.String(u.Bucket),
 		Key:    aws.String(key),
 
-		ContentType:     contentType,
 		ContentEncoding: contentEncoding,
+		ContentType:     contentType,
 	})
+
+	if awsErr, ok := err.(awserr.Error); ok && awsErr.Code() == request.CanceledErrorCode {
+		u.emitError(fmt.Errorf("request canceled: %w", awsErr), uploadContext)
+		return
+	}
 
 	u.emitError(err, uploadContext)
 }
