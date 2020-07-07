@@ -26,7 +26,7 @@ var (
 // test mocks.
 type PutClient interface {
 	PutObject(*s3.PutObjectInput) (*s3.PutObjectOutput, error)
-	PutObjectWithContext(context.Context, *s3.PutObjectInput) (*s3.PutObjectOutput, error)
+	PutObjectWithContext(context.Context, *s3.PutObjectInput, ...request.Option) (*s3.PutObjectOutput, error)
 }
 
 // UploadOptions contains the configuration information for the Upload process, and exposes no
