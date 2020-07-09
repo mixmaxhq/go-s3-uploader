@@ -172,9 +172,9 @@ func TestUploaderWindow(tt *testing.T) {
 
 	input <- fixtures[0]
 
-	time.Sleep(100)
+	time.Sleep(time.Millisecond * 100)
 	for atomic.LoadUint64(&mock.objectCount) < 1 {
-		time.Sleep(10)
+		time.Sleep(time.Millisecond * 10)
 	}
 
 	input <- fixtures[1]
