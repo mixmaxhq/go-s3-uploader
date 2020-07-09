@@ -1,6 +1,7 @@
 package uploader
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -8,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/service/s3"
 	td "github.com/maxatome/go-testdeep/td"
 )
@@ -20,20 +22,33 @@ var (
 )
 
 type clientMock struct {
-	c           chan int
 	objectCount uint64
-	objects     []*s3.PutObjectInput
+	objects     chan *s3.PutObjectInput
 }
 
 func (c *clientMock) PutObject(input *s3.PutObjectInput) (*s3.PutObjectOutput, error) {
-	// TODO: are there any concerns about shared memory here?
-	c.objects = append(c.objects, input)
+	c.objects <- input
 	atomic.AddUint64(&c.objectCount, 1)
 	return nil, nil
 }
 
-func config(size uint64, window time.Duration) (*clientMock, chan<- []byte, <-chan error) {
-	mock := clientMock{}
+func (c *clientMock) PutObjectWithContext(ctx context.Context, input *s3.PutObjectInput, options ...request.Option) (*s3.PutObjectOutput, error) {
+	return c.PutObject(input)
+}
+
+func (c *clientMock) getObjects() []*s3.PutObjectInput {
+	close(c.objects)
+	var objs []*s3.PutObjectInput
+	for obj := range c.objects {
+		objs = append(objs, obj)
+	}
+	return objs
+}
+
+func config(size uint64, window time.Duration, expectedCount uint64) (*clientMock, chan<- []byte, <-chan error) {
+	mock := clientMock{
+		objects: make(chan *s3.PutObjectInput, expectedCount),
+	}
 
 	input := make(chan []byte, 16)
 
@@ -83,7 +98,7 @@ func TestMisconfigured(tt *testing.T) {
 func TestUploader(tt *testing.T) {
 	assert, require := td.AssertRequire(tt)
 
-	mock, input, errs := config(1024, time.Second*1)
+	mock, input, errs := config(1024, time.Second*1, 2)
 
 	input <- fixtures[0]
 	input <- fixtures[1]
@@ -94,8 +109,9 @@ func TestUploader(tt *testing.T) {
 		assert.Error(err)
 	}
 
-	require.Cmp(len(mock.objects), 1)
-	obj := mock.objects[0]
+	objs := mock.getObjects()
+	require.Cmp(len(objs), 1)
+	obj := objs[0]
 	assert.Cmp(*obj.Bucket, "test-bucket")
 	assert.Cmp(*obj.Key, "/test-prefix/0")
 	if b, err := ioutil.ReadAll(obj.Body); assert.CmpNoError(err) {
@@ -126,7 +142,7 @@ func TestUploaderConcurrent(tt *testing.T) {
 	assert, require := td.AssertRequire(tt)
 
 	// The size parameter will force the data into two separate requests.
-	mock, input, errs := config(300, time.Second*1)
+	mock, input, errs := config(300, time.Second*1, 2)
 
 	input <- fixtures[0]
 	input <- fixtures[1]
@@ -137,11 +153,13 @@ func TestUploaderConcurrent(tt *testing.T) {
 		assert.Error(err)
 	}
 
+	close(mock.objects)
+
 	objs := make(map[string]*s3.PutObjectInput, 2)
-	for _, obj := range mock.objects {
+	for obj := range mock.objects {
 		objs[*obj.Key] = obj
 	}
-	require.Cmp(len(mock.objects), 2)
+	require.Cmp(len(objs), 2)
 	assert.Cmp(*objs["/test-prefix/0"].Bucket, "test-bucket")
 	assert.Cmp(*objs["/test-prefix/1"].Bucket, "test-bucket")
 }
@@ -150,13 +168,13 @@ func TestUploaderWindow(tt *testing.T) {
 	assert, require := td.AssertRequire(tt)
 
 	// The window parameter will force the data into two separate requests.
-	mock, input, errs := config(1024, time.Millisecond*100)
+	mock, input, errs := config(1024, time.Millisecond*100, 2)
 
 	input <- fixtures[0]
 
-	time.Sleep(100)
+	time.Sleep(time.Millisecond * 100)
 	for atomic.LoadUint64(&mock.objectCount) < 1 {
-		time.Sleep(10)
+		time.Sleep(time.Millisecond * 10)
 	}
 
 	input <- fixtures[1]
@@ -167,13 +185,14 @@ func TestUploaderWindow(tt *testing.T) {
 		assert.Error(err)
 	}
 
-	require.Cmp(len(mock.objects), 2)
+	objs := mock.getObjects()
+	require.Cmp(len(objs), 2)
 
-	obj := mock.objects[0]
+	obj := objs[0]
 	assert.Cmp(*obj.Bucket, "test-bucket")
 	assert.Cmp(*obj.Key, "/test-prefix/0")
 
-	obj = mock.objects[1]
+	obj = objs[1]
 	assert.Cmp(*obj.Bucket, "test-bucket")
 	assert.Cmp(*obj.Key, "/test-prefix/1")
 }

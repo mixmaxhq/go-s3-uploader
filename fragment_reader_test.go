@@ -66,10 +66,10 @@ func TestDefaultBoundary(t *testing.T) {
 
 func TestEmptyFragments(t *testing.T) {
 	blobs := [][]byte{
-		[]byte{},
-		[]byte{},
+		{},
+		{},
 		[]byte("a"),
-		[]byte{},
+		{},
 	}
 
 	blob, err := readFragments(blobs, []byte("."))
@@ -92,7 +92,7 @@ func TestNilCases(t *testing.T) {
 	}
 
 	blobs = [][]byte{
-		[]byte{},
+		{},
 	}
 
 	blob, err = readFragments(blobs, nil)
@@ -106,10 +106,10 @@ func TestNilCases(t *testing.T) {
 	}
 
 	blobs = [][]byte{
-		[]byte{},
-		[]byte{},
+		{},
+		{},
 		[]byte("a"),
-		[]byte{},
+		{},
 	}
 
 	blob, err = readFragments(blobs, nil)
