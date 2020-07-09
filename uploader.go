@@ -42,6 +42,9 @@ type UploadOptions struct {
 	Client PutClient
 	// Bucket is the S3 bucket into which batched uploads get saved.
 	Bucket string
+	// ObjectACL is the canned ACL to apply to the new objects created in the bucket. For example, for
+	// cross-account workflows, this might be "bucket-owner-full-control."
+	ObjectACL string
 
 	// ConcurrentUploads is the number of concurrent S3 object writes we should have going at any one
 	// point in time.
@@ -147,14 +150,20 @@ func (u UploadOptions) uploadObject(batch *Batch) {
 		defer cancel()
 	}
 
-	_, err = u.Client.PutObjectWithContext(ctx, &s3.PutObjectInput{
+	putInput := s3.PutObjectInput{
 		Body:   compressed,
 		Bucket: aws.String(u.Bucket),
 		Key:    aws.String(key),
 
 		ContentEncoding: contentEncoding,
 		ContentType:     contentType,
-	})
+	}
+
+	if len(u.ObjectACL) > 0 {
+		putInput.ACL = aws.String(u.ObjectACL)
+	}
+
+	_, err = u.Client.PutObjectWithContext(ctx, &putInput)
 
 	if awsErr, ok := err.(awserr.Error); ok && awsErr.Code() == request.CanceledErrorCode {
 		u.emitError(fmt.Errorf("request canceled: %w", awsErr), uploadContext)
