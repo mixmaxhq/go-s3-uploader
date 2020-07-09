@@ -144,7 +144,7 @@ func (u UploadOptions) uploadObject(batch *Batch) {
 	}
 
 	ctx := context.Background()
-	if u.UploadTimeout > time.Second * 0 {
+	if u.UploadTimeout > time.Second*0 {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(context.Background(), u.UploadTimeout)
 		defer cancel()
