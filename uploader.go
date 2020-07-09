@@ -66,10 +66,9 @@ type UploadOptions struct {
 	// immediately when a buffer is closed, and used to name/locate the object as it gets uploaded.
 	GetKey func(time.Time) string
 
-	// errors is the output channel for emitting errors. These are generally non- fatal, except for
-	// any errors that occur in the Upload function itself. This channel closes when the uploader
-	// stops - usually when the Input channel was closed and all blobs received have been written to
-	// S3.
+	// errors is the output channel for emitting errors. These are generally non-fatal, except for any
+	// errors that occur in the Upload function itself. This channel closes when the uploader stops -
+	// usually when the Input channel was closed and all blobs received have been written to S3.
 	errors chan<- error
 
 	// bufferPool is a pool of buffers sized according to ConcurrentUploads. One buffer corresponds to
