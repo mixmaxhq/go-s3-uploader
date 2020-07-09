@@ -22,7 +22,6 @@ var (
 )
 
 type clientMock struct {
-	c           chan int
 	objectCount uint64
 	objects     chan *s3.PutObjectInput
 }

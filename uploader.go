@@ -258,12 +258,6 @@ func (u UploadOptions) run() {
 	}
 }
 
-func fatal(e chan error, err error) chan error {
-	e <- err
-	close(e)
-	return e
-}
-
 // Upload consumes a channel containing byte arrays (blobs), joins them with a delimiter in batches,
 // and uploads the batches to S3. The error channel outputs runtime errors, while the error return
 // value outputs initialization errors.
