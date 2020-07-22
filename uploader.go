@@ -19,7 +19,8 @@ var (
 	contentType     = aws.String("application/x-ndjson")
 	contentEncoding = aws.String("gzip")
 
-	newlineBytes = []byte("\n")
+	newlineBytes   = []byte("\n")
+	pendingBatches = make(map[string]Batch)
 )
 
 // PutClient represents the subset of the S3 interface we use in the Uploader, which facilitates
@@ -29,6 +30,17 @@ type PutClient interface {
 	PutObjectWithContext(context.Context, *s3.PutObjectInput, ...request.Option) (*s3.PutObjectOutput, error)
 }
 
+type InputData interface {
+	// the actual data
+	GetBlob() []byte
+
+	// GetKey generates the key string given the time at which the first blob arrived. It is invoked
+	// immediately when a buffer is closed, and used to name/locate the object as it gets uploaded.
+	GetKey(time.Time) string
+
+	GetObjectType() string
+}
+
 // UploadOptions contains the configuration information for the Upload process, and exposes no
 // public methods.
 type UploadOptions struct {
@@ -36,7 +48,7 @@ type UploadOptions struct {
 	// array to disable.
 	Delimiter []byte
 	// Input provides a stream of blobs (byte arrays) to batch and upload to S3.
-	Input <-chan []byte
+	Input <-chan InputData
 
 	// Client is a pre-configured S3 client capable of writing objects to the defined S3 Bucket.
 	Client PutClient
@@ -61,10 +73,6 @@ type UploadOptions struct {
 	BatchWindow time.Duration
 	// UploadTimeout is the length of time a single upload may take before it gets canceled.
 	UploadTimeout time.Duration
-
-	// GetKey generates the key string given the time at which the first blob arrived. It is invoked
-	// immediately when a buffer is closed, and used to name/locate the object as it gets uploaded.
-	GetKey func(time.Time) string
 
 	// errors is the output channel for emitting errors. These are generally non-fatal, except for any
 	// errors that occur in the Upload function itself. This channel closes when the uploader stops -
@@ -95,6 +103,8 @@ type Batch struct {
 	buffer        [][]byte
 	firstBlobTime time.Time
 	size          uint64
+	key           string
+	objectType    string
 }
 
 func (u UploadOptions) isBatchFull(b Batch) bool {
@@ -132,8 +142,6 @@ func (u UploadOptions) uploadObject(batch *Batch) {
 		u.bufferPool <- batch.buffer[:0]
 	}()
 
-	key := u.GetKey(batch.firstBlobTime)
-
 	reader := newFragmentReader(batch.buffer, newlineBytes)
 	compressed, err := compress(reader)
 	if err != nil {
@@ -152,7 +160,7 @@ func (u UploadOptions) uploadObject(batch *Batch) {
 	putInput := s3.PutObjectInput{
 		Body:   compressed,
 		Bucket: aws.String(u.Bucket),
-		Key:    aws.String(key),
+		Key:    aws.String(batch.key),
 
 		ContentEncoding: contentEncoding,
 		ContentType:     contentType,
@@ -184,22 +192,47 @@ func (u UploadOptions) contextWithTimeout(ctx context.Context) (context.Context,
 	return context.WithTimeout(ctx, u.BatchWindow)
 }
 
+func addToPendingBatch(u UploadOptions, inputData InputData) Batch {
+	blob := inputData.GetBlob()
+	objectType := inputData.GetObjectType()
+	b, ok := pendingBatches[objectType]
+
+	// start a new batch
+	if !ok {
+		firstBlobTime := time.Now()
+		b = Batch{
+			firstBlobTime: firstBlobTime,
+			size:          uint64(len(blob)),
+			key:           inputData.GetKey(firstBlobTime),
+			objectType:    objectType,
+		}
+
+		b.buffer = <-u.bufferPool
+		pendingBatches[objectType] = b
+	} else {
+		b.size += uint64(len(blob))
+	}
+
+	b.buffer = append(b.buffer, blob)
+	return b
+}
+
+func (b Batch) close() {
+	delete(pendingBatches, b.objectType)
+}
+
 // getBatch collects a batch together and returns it and additional metadata. Respects the various
 // batch parameters, including BatchSizeBytes, BatchWindow, and BatchMaxBlobs.
 func (u UploadOptions) getBatch(runCtx context.Context) *Batch {
-	blob, ok := <-u.Input
+	inputData, ok := <-u.Input
 	if !ok {
 		return nil
 	}
 
-	b := Batch{
-		firstBlobTime: time.Now(),
-		size:          uint64(len(blob)),
-	}
-	b.buffer = <-u.bufferPool
-	b.buffer = append(b.buffer, blob)
+	b := addToPendingBatch(u, inputData)
 
 	if u.isBatchFull(b) {
+		b.close()
 		return &b
 	}
 
@@ -208,10 +241,10 @@ func (u UploadOptions) getBatch(runCtx context.Context) *Batch {
 
 	for {
 		select {
-		case blob, ok := <-u.Input:
+		case inputData, ok := <-u.Input:
 			if ok {
-				b.buffer = append(b.buffer, blob)
-				b.size += uint64(len(blob))
+				b := addToPendingBatch(u, inputData)
+				// keep track of last object type so we know
 				if !u.isBatchFull(b) {
 					continue
 				}
@@ -226,6 +259,7 @@ func (u UploadOptions) getBatch(runCtx context.Context) *Batch {
 		break
 	}
 
+	b.close()
 	return &b
 }
 
@@ -267,10 +301,6 @@ func Upload(options UploadOptions) (<-chan error, error) {
 
 	if options.Client == nil {
 		return nil, errors.New("no client provided")
-	}
-
-	if options.GetKey == nil {
-		return nil, errors.New("no key getter provided")
 	}
 
 	if options.Input == nil {
