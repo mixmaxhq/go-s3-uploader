@@ -7,7 +7,7 @@ A Go library (`github.com/mixmaxhq/go-s3-uploader`) that batches byte-array blob
 
 ## serves
 role: shared Go library for concurrent, batched, compressed S3 uploads
-referenced-by: [<fill: Mixmax services that batch-upload blobs/events to S3 — e.g. sequences, mail, files pipelines>]
+referenced-by: [go-s3-collector]   # the only in-org importer (its S3 collector pipeline)
 
 ## Code map
 - Main API        -> `uploader.go` (`Upload(UploadOptions) (<-chan error, error)`)
